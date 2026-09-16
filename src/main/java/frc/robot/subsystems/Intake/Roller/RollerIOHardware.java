@@ -17,7 +17,8 @@ public class RollerIOHardware implements RollerIO {
     private final TalonFX roller = new TalonFX(11, "9427");
     private final TalonFX rollerFollower = new TalonFX(12, "9427");
 
-    // control request 物件重複使用,避免每次呼叫都 new,減少 GC 壓力
+    // 重複使用 VoltageOut 控制物件，避免每次週期呼叫時重複實例化產生 GC 垃圾回收延遲
+    // withEnableFOC(true) 啟用磁場導向控制 (Field-Oriented Control)，提升馬達扭矩響應與運轉效率 (需 Pro 授權)
     private final VoltageOut rollVoltageOut = new VoltageOut(0).withEnableFOC(true);
 
     private final StatusSignal<Voltage> motorVoltageSignal = roller.getMotorVoltage();
@@ -27,10 +28,12 @@ public class RollerIOHardware implements RollerIO {
     public RollerIOHardware() {
         configureMotor();
 
+        // 從動馬達反向對齊：雙馬達對接滾軸時轉向相反，需設為 Opposed
         rollerFollower.setControl(new Follower(roller.getDeviceID(), MotorAlignmentValue.Opposed));
 
         motorVoltageSignal.setUpdateFrequency(50);
 
+        // 匯流排使用率優化：關閉或降低不需要的訊號頻率，釋放 CAN Bus 頻寬
         roller.optimizeBusUtilization();
         rollerFollower.optimizeBusUtilization();
     }
