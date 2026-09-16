@@ -48,30 +48,22 @@ public class IntakeSubsystem extends SubsystemBase {
     }
 
     public void intakeDown() {
-        this.arm.setPosition(Degrees.of(2));
+        this.arm.setPosition(Degrees.of(0));
     }
 
     public void intakeUp() {
-        this.arm.setPosition(Degrees.of(129));
+        this.arm.setPosition(Degrees.of(90));
     }
 
-    /** 手臂放下指令：發送目標角度給 Arm 馬達控制器 */
     public Command intakeDownCommand() {
         return this.runOnce(this::intakeDown);
     }
 
-    /** 手臂抬起指令：發送目標角度給 Arm 馬達控制器 */
     public Command intakeUpCommand() {
         return this.runOnce(this::intakeUp);
     }
 
-    /**
-     * 持續吸入指令：
-     * - runEnd 結構：
-     *   1. 啟動階段 (Execute): 每個週期輸出電壓給滾輪馬達，並更新狀態為 INTAKING。
-     *   2. 結束階段 (End/Interrupt): 當指令被中斷（例如按鈕放開）時，自動執行停止滾輪並切換狀態為 NONE。
-     * - Subsystem Requirement (傳入 this): 宣告此指令獨佔 IntakeSubsystem，防止其他吸取指令同時競爭造成邏輯衝突。
-     */
+    /** 持續吸入,直到這個 command 被取消(例如放開按鈕)才停止滾輪 */
     public Command intakeRollRunCommand() {
         return Commands.runEnd(
                 () -> {
@@ -85,16 +77,11 @@ public class IntakeSubsystem extends SubsystemBase {
                 this);
     }
 
-    /**
-     * 組合指令 (Sequence)：
-     * 依序執行「手臂放下 (runOnce)」->「持續吸入 (runEnd)」。
-     * 適用於綁定在搖桿的按住按鈕 (whileTrue) 上。
-     */
+    /** 手臂放下 + 滾輪吸入,適合綁在「按住吸取」的按鈕上 */
     public Command intakeRunCommand() {
         return Commands.sequence(this.intakeDownCommand(), this.intakeRollRunCommand());
     }
 
-    /** 停止吸取指令：立即關閉滾輪並復位狀態 */
     public Command stopIntakeCommand() {
         return this.runOnce(() -> {
             this.roller.stop();
@@ -102,7 +89,16 @@ public class IntakeSubsystem extends SubsystemBase {
         });
     }
 
-    /** 手臂放下並停止滾輪 (Parallel)：同時執行放下動作並將滾輪斷電 */
+    // public Command intakeUpAndShootCommand() {
+    // return Commands.parallel(
+    // this.intakeUpCommand(),
+    // // 包成同一個 command 內部呼叫,避免外部亂呼叫造成手臂/滾輪不同步
+    // Commands.runOnce(() -> {
+    // this.roller.setVoltage(Volts.of(SCORE_VOLTAGE));
+    // setState(IntakeState.SCORING);
+    // }, this));
+    // }
+
     public Command intakeDownAndStopCommand() {
         return Commands.parallel(
                 this.intakeDownCommand(),
